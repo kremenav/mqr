@@ -1,0 +1,152 @@
+# Optimal Stopping Model for Sequential Bayesian Decision-Making
+
+This repository implements the numerical solution of our finite-horizon Bayesian optimal stopping model for dynamic majority decision-making detailed in our paper: "Optimal Dynamic Majority-Quorum Rules: Theory and Evidence" (2026).
+
+The model describes how a collective entity can optimally decide when to stop observing incoming votes and make a final decision (accept or reject) in order to maximize expected utility under uncertainty.
+
+The model formalizes the problem as a dynamic programming process with Poisson-distributed random vote arrivals. At each step, the system decides whether to continue collecting votes — incurring a small observation cost — or to stop and accept/reject based on the posterior belief of the true majority.
+
+The model captures the trade-off between information gain from observing more votes and cost from delaying the decision. In addition to solving for the optimal stopping boundary via backward induction, this implementation provides publication-quality visualizations of the optimal stopping boundaries, including LLR approximations and optional overlays of the Acceptance–Support Mechanism (ASM).
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Mathematical Model](#mathematical-model)
+3. [Repository Structure](#repository-structure)
+4. [Installation](#installation)
+5. [Usage](#usage)
+6. [Configuration](#configuration)
+7. [Visualization](#visualization)
+9. [License](#license)
+9. [Citation](#citation)
+
+---
+
+## Overview
+
+ - The planner observes a population of odd size $N$, where each voter has a fixed binary preference: support (+) or oppose (-) a proposal.
+- Votes arrive sequentially over discrete dates $t = 1,2,\dots,T$, in batches of random size drawn from a censored Poisson distribution.
+- At each step, the planner chooses to:
+
+    - Stop and Accept
+    - Stop and Reject
+    - Continue sampling, incurring a small observation cost $c$
+
+- Beliefs are updated via the finite-population hypergeometric posterior.
+
+## Mathematical Model
+
+Let:
+- $s_t^+$: cumulative number of “aye” votes observed by time $t$  
+- $s_t^-$: cumulative number of “nay” votes observed by time $t$  
+- $N$: total number of potential voters  
+- $T$: time horizon  
+- $c$: step cost per period  
+- $R$: reward for a correct decision  
+
+The posterior belief about the number of supporters $M^+$ is $P(M^+ = m^+ \mid s^+, s^-) = \frac{\binom{m^+}{s^+}\binom{N-m^+}{s^-}}{\binom{N+1}{s+1}}.$
+
+Let the value function at time $t$ be $V_t(s^+, s^-)$, representing the maximal expected payoff:
+
+$$
+V_t(s^+, s^-) = \max \{ U(s^+, s^-), -c + \mathbb{E}[ V_{t+1}(\tilde{s}^+, \tilde{s}^-) \mid s^+, s^- ] \},
+$$
+
+where the stopping payoff is:
+
+$$
+U(s^+, s^-) = R \cdot \max \{\mu(s^+, s^-), 1 - \mu(s^+, s^-)\}, \quad
+\mu(s^+, s^-) = P(M^+ > N/2 \mid s^+, s^-).
+$$
+
+For large $N$ and cumulative sample size $s$, the optimal stopping rule can be approximated via the implemented log-likelihood-ratio (LLR) boundary:
+
+$$
+\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s} \ge
+2\left[\log\left(\frac{R}{c}\right) - \log\log\left(\frac{R}{c}\right)\right]
+\frac{N[\Lambda(T)-\Lambda(t)]}{[N-\Lambda(t)]\Lambda(T)}.
+$$
+---
+
+## Repository Structure
+
+```text
+dynamic_voting/
+│
+├── asm.py                  # Contains the parameters of ASM tracks
+├── config.py               # Configuration of parameters and plotting options
+├── model.py                # Bayesian updating and dynamic programming
+├── plotting.py             # Visualization of stopping regions and approximations
+├── main.py                 # Entry point to run the full model
+├── requirements.txt        # Dependencies for Python environment
+└── README.md               # Project documentation
+```
+
+## Installation
+Install dependencies:
+
+```
+pip install -r requirements.txt
+```
+
+## Usage
+Run the full model (simulation + visualization):
+
+    python main.py
+
+Typical Workflow:
+
+- Load configuration (`config.py`).
+- Initialize `VotingModel'($N$, $T$, $c$, $R$, $\lambda$).
+- Compute the value function via vectorized backward induction.
+- Plot stopping boundaries using `plot_stopping_boundaries_general()`.
+- *(Optional)* Overlay ASM region or LLR approximation.
+- Plot over-time LLR boundary using `plot_bound_over_time()`.
+
+## Configuration
+Model parameters and plot settings are managed in `config.py`. Validation ensures $N$ is odd, $T \ge 1$, plot times are within the horizon, and the Poisson arrival rate $\lambda$ is feasible.
+
+    CONFIG: Config = {
+    "num_voters": 101,      
+    "time_horizon": 28,     
+    "step_cost": 0.01,      
+    "reward": 10.0,         
+    "arrival_a": 1.7367,
+    "arrival_b": 0.0,
+    "bound_shapes": [...],
+    "plot_mode": "Diff-vs-Sum",        
+    "asm_track": "",                    
+    "times_to_plot": [2, 14, 26],
+}
+
+## Visualization
+The system produces three figures:
+
+1. Decision Boundaries over Time
+In the generated plots, gray dots represent the "Continue" region, the red curve represents the LLR approximation, and the optional ASM overlay is shown as a shaded polygon. The plotting module supports multiple coordinate transformations. 
+
+| Mode | Description | Axes |
+|------|--------------|------|
+| **Aye-vs-Nay** | Displays counts of "aye" and "nay" votes.  | $x = s^+$, $y = s^-$ |
+| **Diff-vs-Sum** | Plots the vote margin (difference between aye and nay) against the total number of votes cast. | $x = s^+ + s^-$, $y = s^+ - s^-$ |
+| **Acceptance-vs-Turnout** | Shows acceptance rate versus overall turnout fraction. | $x = (s^+ + s^-)/N$, $y = s^+/(s^+ + s^-)$ |
+| **Acceptance-vs-Support** | Plots acceptance rate relative to true underlying support. Note that the stopping region of the ASM is shaped as a rectangle. | $x = s^+/N$, $y = s^+/(s^+ + s^-)$ |
+
+
+Select your preferred visualization by setting `plot_mode` in `config.py`.
+
+2. Over-Time LLR Boundary
+Visualization of the log-likelihood ratio (LLR) threshold as a function of time.bThe planner continues sampling while the LLR lies within the symmetric band $[-y_{\text{boundary}}(t), +y_{\text{boundary}}(t)]$. The band shrinks as $t \to T$, reflecting the diminishing value of additional information.
+
+For a detailed discussion on how to interpret these boundaries please review the corresponding sections in our paper.
+
+3. Approximation Goodness of Fit
+The two-panel comparison plots the exact and simplified signed-lead boundaries
+against total turnout, followed by the smoothed difference $d^* - \tilde{d}$.
+
+## Citation
+If you use this code, methodology, or the resulting plots in your own work, please cite our accompanying paper:
+
+Bhargav Nagaraja Bhatt, Jonas Gehrlein and Kremena Valkanova (2026). *Optimal Dynamic Majority-Quorum Rules: Theory and Evidence*. Working paper.
