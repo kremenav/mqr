@@ -64,9 +64,11 @@ $$
 For large $N$ and cumulative sample size $s$, the optimal stopping rule can be approximated via the implemented log-likelihood-ratio (LLR) boundary:
 
 $$
-\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s} \ge
-2\left[\log\left(\frac{R}{c}\right) - \log\log\left(\frac{R}{c}\right)\right]
-\frac{N[\Lambda(T)-\Lambda(t)]}{[N-\Lambda(t)]\Lambda(T)}.
+\begin{aligned}
+\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s}
+&\ge 2\left[\log\left(\frac{R}{c}\right) - \log\log\left(\frac{R}{c}\right)\right] \\
+&\quad\times \frac{N\left[\Lambda(T)-\Lambda(t)\right]}{\left[N-\Lambda(t)\right]\Lambda(T)}.
+\end{aligned}
 $$
 ---
 
