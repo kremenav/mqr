@@ -31,7 +31,7 @@ The model captures the trade-off between information gain from observing more vo
 
     - Stop and Accept
     - Stop and Reject
-    - Continue sampling, incurring a small observation cost $c$
+    - Continue sampling, incurring a small observation cost $\kappa$
 
 - Beliefs are updated via the finite-population hypergeometric posterior.
 
@@ -45,12 +45,16 @@ Let:
 - $\kappa$: step cost per period  
 - $R$: reward for a correct decision  
 
-The posterior belief about the number of supporters $M^+$ is $P(M^+ = m^+ \mid s^+, s^-) = \frac{\binom{m^+}{s^+}\binom{N-m^+}{s^-}}{\binom{N+1}{s+1}}.$
+The posterior belief about the number of supporters $M^+$ is 
+
+$$
+P(M^+ = m^+ \mid s^+, s^-) = \frac{\binom{m^+}{s^+}\binom{N-m^+}{s^-}}{\binom{N+1}{s+1}}.
+$$
 
 Let the value function at time $t$ be $V_t(s^+, s^-)$, representing the maximal expected payoff:
 
 $$
-V_t(s^+, s^-) = \max \{ U(s^+, s^-), -c + \mathbb{E}[ V_{t+1}(\tilde{s}^+, \tilde{s}^-) \mid s^+, s^- ] \},
+V_t(s^+, s^-) = \max \{ U(s^+, s^-), -\kappa + \mathbb{E}[ V_{t+1}(\tilde{s}^+, \tilde{s}^-) \mid s^+, s^- ] \},
 $$
 
 where the stopping payoff is:
@@ -63,7 +67,7 @@ $$
 For large $N$ and cumulative sample size $s$, the optimal stopping rule can be approximated via the implemented log-likelihood-ratio (LLR) boundary:
 
 $$
-\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s} \ge 2\left[\log\left(\frac{R}{c}\right) - \log\log\left(\frac{R}{c}\right)\right]\times \frac{N\left[\Lambda(T)-\Lambda(t)\right]}{\left[N-\Lambda(t)\right]\Lambda(T)}.
+\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s} \ge 2\left[\log\left(\frac{R}{\kappa}\right) - \log\log\left(\frac{R}{\kappa}\right)\right]\times \frac{N\left[\Lambda(T)-\Lambda(t)\right]}{\left[N-\Lambda(t)\right]\Lambda(T)}.
 $$
 
 ---
@@ -101,7 +105,7 @@ All generated figures are saved in the dedicated `outputs/` folder.
 Typical Workflow:
 
 - Load configuration (`config.py`).
-- Initialize `VotingModel'($N$, $T$, $c$, $R$, $\lambda$).
+- Initialize `VotingModel'($N$, $T$, $\kappa$, $R$, $\lambda$).
 - Compute the value function via vectorized backward induction.
 - Plot stopping boundaries using `plot_stopping_boundaries_general()`.
 - *(Optional)* Overlay ASM region or LLR approximation.
