@@ -6,7 +6,7 @@ The model describes how a collective entity can optimally decide when to stop ob
 
 The model formalizes the problem as a dynamic programming process with Poisson-distributed random vote arrivals. At each step, the system decides whether to continue collecting votes — incurring a small observation cost — or to stop and accept/reject based on the posterior belief of the true majority.
 
-The model captures the trade-off between information gain from observing more votes and cost from delaying the decision. In addition to solving for the optimal stopping boundary via backward induction, this implementation provides publication-quality visualizations of the optimal stopping boundaries, including LLR approximations and optional overlays of the Acceptance–Support Mechanism (ASM).
+The model captures the trade-off between information gain from observing more votes and cost from delaying the decision. In addition to solving for the optimal stopping boundary via backward induction, this implementation provides visualizations of the optimal stopping boundaries, including LLR approximations and optional overlays of the Acceptance–Support Mechanism (ASM) used in our paper.
 
 ---
 
@@ -19,14 +19,13 @@ The model captures the trade-off between information gain from observing more vo
 5. [Usage](#usage)
 6. [Configuration](#configuration)
 7. [Visualization](#visualization)
-9. [License](#license)
-9. [Citation](#citation)
+8. [Citation](#citation)
 
 ---
 
 ## Overview
 
- - The planner observes a population of odd size $N$, where each voter has a fixed binary preference: support (+) or oppose (-) a proposal.
+- The planner observes a population of odd size $N$, where each voter has a fixed binary preference: support (+) or oppose (-) a proposal.
 - Votes arrive sequentially over discrete dates $t = 1,2,\dots,T$, in batches of random size drawn from a censored Poisson distribution.
 - At each step, the planner chooses to:
 
@@ -43,7 +42,7 @@ Let:
 - $s_t^-$: cumulative number of “nay” votes observed by time $t$  
 - $N$: total number of potential voters  
 - $T$: time horizon  
-- $c$: step cost per period  
+- $\kappa$: step cost per period  
 - $R$: reward for a correct decision  
 
 The posterior belief about the number of supporters $M^+$ is $P(M^+ = m^+ \mid s^+, s^-) = \frac{\binom{m^+}{s^+}\binom{N-m^+}{s^-}}{\binom{N+1}{s+1}}.$
@@ -64,18 +63,15 @@ $$
 For large $N$ and cumulative sample size $s$, the optimal stopping rule can be approximated via the implemented log-likelihood-ratio (LLR) boundary:
 
 $$
-\begin{aligned}
-\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s}
-&\ge 2\left[\log\left(\frac{R}{c}\right) - \log\log\left(\frac{R}{c}\right)\right] \\
-&\quad\times \frac{N\left[\Lambda(T)-\Lambda(t)\right]}{\left[N-\Lambda(t)\right]\Lambda(T)}.
-\end{aligned}
+\frac{(s^+ - s^-)^2}{s} \cdot \frac{N}{N-s} \ge 2\left[\log\left(\frac{R}{c}\right) - \log\log\left(\frac{R}{c}\right)\right]\times \frac{N\left[\Lambda(T)-\Lambda(t)\right]}{\left[N-\Lambda(t)\right]\Lambda(T)}.
 $$
+
 ---
 
 ## Repository Structure
 
 ```text
-dynamic_voting/
+mqr/
 │
 ├── asm.py                  # Contains the parameters of ASM tracks
 ├── config.py               # Configuration of parameters and plotting options
@@ -83,6 +79,8 @@ dynamic_voting/
 ├── plotting.py             # Visualization of stopping regions and approximations
 ├── main.py                 # Entry point to run the full model
 ├── requirements.txt        # Dependencies for Python environment
+├── outputs/                # Generated PDF figures
+├── .gitignore              # Files excluded from version control
 └── README.md               # Project documentation
 ```
 
@@ -98,6 +96,8 @@ Run the full model (simulation + visualization):
 
     python main.py
 
+All generated figures are saved in the dedicated `outputs/` folder.
+
 Typical Workflow:
 
 - Load configuration (`config.py`).
@@ -111,15 +111,15 @@ Typical Workflow:
 Model parameters and plot settings are managed in `config.py`. Validation ensures $N$ is odd, $T \ge 1$, plot times are within the horizon, and the Poisson arrival rate $\lambda$ is feasible.
 
     CONFIG: Config = {
-    "num_voters": 101,      
-    "time_horizon": 28,     
-    "step_cost": 0.01,      
-    "reward": 10.0,         
+    "num_voters": 497,
+    "time_horizon": 28,
+    "step_cost": 0.001,
+    "reward": 100.0,
     "arrival_a": 1.7367,
     "arrival_b": 0.0,
     "bound_shapes": [...],
-    "plot_mode": "Diff-vs-Sum",        
-    "asm_track": "",                    
+    "plot_mode": "Diff-vs-Sum",
+    "asm_track": "",
     "times_to_plot": [2, 14, 26],
 }
 
@@ -140,7 +140,17 @@ In the generated plots, gray dots represent the "Continue" region, the red curve
 Select your preferred visualization by setting `plot_mode` in `config.py`.
 
 2. Over-Time LLR Boundary
-Visualization of the log-likelihood ratio (LLR) threshold as a function of time.bThe planner continues sampling while the LLR lies within the symmetric band $[-y_{\text{boundary}}(t), +y_{\text{boundary}}(t)]$. The band shrinks as $t \to T$, reflecting the diminishing value of additional information.
+Visualization of the time-varying threshold on the right-hand side of the
+LLR approximation. The plotted quantity is the boundary for the normalized
+squared vote lead,
+
+$$
+\frac{(s^+ - s^-)^2}{s}\,\frac{N}{N-s}.
+$$
+
+At a given time, the planner continues sampling when this statistic is below
+the plotted threshold and stops when it reaches or exceeds it. The threshold
+falls toward the terminal date.
 
 For a detailed discussion on how to interpret these boundaries please review the corresponding sections in our paper.
 
