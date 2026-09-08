@@ -337,7 +337,7 @@ class VotingModel:
         return accept_states, reject_states, wait_states
 
     # ----------------------------
-    # Simplified approximate LLR boundary
+    # Simplified approximate LLR boundary - adaptive
     # ----------------------------
     def simplified(self, t: int):
         """
@@ -371,12 +371,18 @@ class VotingModel:
 
         reward_cost_log_ratio = (np.log(R / c) -np.log(np.log(R / c)))
         # Information-time gap:
-        info_time_gap = (N* (Lambda_T-Lambda_t)) / ((Lambda_T)*(N-Lambda_t)) 
+        #info_time_gap = (N* (Lambda_T-Lambda_t)) / ((Lambda_T)*(N-Lambda_t)) 
+        
 
         for total_votes_observed in total_votes_range:
             # d² = [2log(R/c) − 2loglog(R/c)] · N(Λ_T−Λ_t)/((N−Λ_t)Λ_T) · s(N−s)/N
-            llr_term = reward_cost_log_ratio * info_time_gap * (2 * total_votes_observed * (N - total_votes_observed)) / N
+            s_hat_T = min(total_votes_observed + Lambda_T - Lambda_t, N)
+            llr_term = reward_cost_log_ratio * 2 * total_votes_observed * (s_hat_T - total_votes_observed) / (s_hat_T)
+            # llr_term = reward_cost_log_ratio * info_time_gap * (2 * total_votes_observed * (N - total_votes_observed)) / N
             llr_sqrt_term = np.sqrt(max(0, llr_term))
+            # EDIT 4: skip infeasible states (boundary outside the simplex)
+            #if llr_sqrt_term > total_votes_observed:
+            #   continue
 
             upper_aye = (total_votes_observed + llr_sqrt_term) / 2
             upper_nay = (total_votes_observed - llr_sqrt_term) / 2
@@ -387,3 +393,58 @@ class VotingModel:
             lower_branch_states.append((lower_aye, lower_nay))
 
         return upper_branch_states + lower_branch_states[::-1]
+    
+    # ----------------------------
+    # Simplified approximate LLR boundary - posted
+    # ----------------------------
+    
+    def simplified_posted(self, t: int):
+            """
+            Approximate (closed-form) stopping boundary at time t.
+    
+            Evaluates the log-likelihood-ratio approximation of Theorem 2 across a
+            range of total votes s, giving the boundary half-width
+            d = sqrt(2·[log(R/c) - log(log(R/c))] ·
+            N(Λ(T)-Λ(t))/[(N-Λ(t))Λ(T)] · s(N-s)/N),
+            and returns both branches as (aye, nay) = ((s±d)/2, (s∓d)/2).
+    
+            Parameters
+            ----------
+            t : int
+                Time step at which to evaluate the boundary.
+    
+            Returns
+            -------
+            list of (float, float)
+                Boundary points: the upper branch followed by the lower branch in
+                reverse, so the sequence traces a single continuous curve.
+            """
+            N, R, c, T = self.num_voters_total, self.stop_reward, self.step_cost, self.time_horizon
+            # Cumulative expected arrivals at the current date and at the deadline.
+            Lambda_t = self.cumulative_arrivals[t]
+            Lambda_T = self.cumulative_arrivals[T]
+    
+            upper_branch_states, lower_branch_states = [], []
+    
+            total_votes_range = np.linspace(0, N, 300)
+    
+            reward_cost_log_ratio = (np.log(R / c) -np.log(np.log(R / c)))
+            # Information-time gap:
+            info_time_gap = (N* (Lambda_T-Lambda_t)) / ((Lambda_T)*(N-Lambda_t)) 
+            
+    
+            for total_votes_observed in total_votes_range:
+                # d² = [2log(R/c) − 2loglog(R/c)] · N(Λ_T−Λ_t)/((N−Λ_t)Λ_T) · s(N−s)/N
+                llr_term = reward_cost_log_ratio * info_time_gap * (2 * total_votes_observed * (N - total_votes_observed)) / N
+                llr_sqrt_term = np.sqrt(max(0, llr_term))
+
+    
+                upper_aye = (total_votes_observed + llr_sqrt_term) / 2
+                upper_nay = (total_votes_observed - llr_sqrt_term) / 2
+                upper_branch_states.append((upper_aye, upper_nay))
+    
+                lower_aye = (total_votes_observed - llr_sqrt_term) / 2
+                lower_nay = (total_votes_observed + llr_sqrt_term) / 2
+                lower_branch_states.append((lower_aye, lower_nay))
+    
+            return upper_branch_states + lower_branch_states[::-1]
