@@ -6,7 +6,11 @@ import os
 
 from config import CONFIG
 from model import VotingModel
-from plotting import plot_stopping_boundaries_general, plot_bound_over_time, plot_approx_goodness
+from plotting import (
+    plot_stopping_boundaries_general,
+    plot_bound_over_time,
+    plot_posted_front_loaded_boundaries,
+)
 
 def main():
     """
@@ -14,8 +18,8 @@ def main():
 
     Reads parameters from ``CONFIG`` (already validated at import time), solves
     the optimal stopping problem by backward induction, then writes three
-    figures: state-space stopping boundaries, the over-time LLR boundary, and
-    an exact-versus-approximate threshold comparison.
+    figures: state-space stopping boundaries, front-loaded posted boundaries
+    with ASM overlay, and over-time LLR boundary comparison.
     """
     cfg = CONFIG
     output_dir = "outputs"
@@ -47,20 +51,26 @@ def main():
         track=asm_track,
         save_path=os.path.join(output_dir, f"stopping_boundaries_{asm_track}_{cfg['plot_mode']}.pdf")
     )
+
+    # Plot 2: Front-loaded posted stopping boundaries with ASM overlay
+    front_loaded_shape = next(
+        shape for shape in cfg["bound_shapes"] if shape["label"] == "Front-loaded"
+    )
+    plot_posted_front_loaded_boundaries(
+        model=vm,
+        times=cfg["times_to_plot"],
+        arrival_shape=front_loaded_shape,
+        mode=cfg["plot_mode"],
+        track=asm_track or "root",
+        save_path=os.path.join(output_dir, "stopping_boundaries_posted_front_loaded.pdf")
+    )
     
-    # Plot 2: Time Boundary
+    # Plot 3: Time Boundary
     plot_bound_over_time(
         model=vm,
         time_horizon=cfg["time_horizon"],
         bound_shapes=cfg["bound_shapes"],
         save_path=os.path.join(output_dir, "LLR.pdf")
-    )
-
-    # Plot 3: Exact versus approximate stopping thresholds
-    plot_approx_goodness(
-        model=vm,
-        times=cfg["times_to_plot"],
-        save_path=os.path.join(output_dir, "fig_approx_goodness.pdf")
     )
 
 if __name__ == "__main__":

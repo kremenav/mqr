@@ -109,8 +109,8 @@ def format_axes_by_mode(ax, mode, num_voters_total):
         ax.plot([0, limit], [0, limit], '--', color='#cccccc', linewidth=1, zorder=0)
         ax.plot([0, limit], [0, -limit], '--', color='#cccccc', linewidth=1, zorder=0)
         ax.axhline(0, color='black', linestyle=':', linewidth=0.5)
-        ax.text(0.95 * limit, 0.7 * limit, "Stop & Accept")
-        ax.text(0.95 * limit, -0.7 * limit, "Stop & Reject")
+        ax.text(0.95 * limit, 0.5 * limit, "Stop & Accept")
+        ax.text(0.95 * limit, -0.5 * limit, "Stop & Reject")
         ax.set(xlim=(0, num_voters_total), ylim=(-limit, limit),
              xlabel=r"$s^+ + s^-$",
              ylabel=r"$s^+ - s^-$")
@@ -190,11 +190,13 @@ def plot_stopping_boundaries_general(model, times, mode="Diff-vs-Sum", track="",
                         alpha=0.4, label='Approval-Support Mechanism (ASM)', zorder=1)
                 ax.text(xs_ASM[0] + 0.1, ys_ASM[0] + 0.5, "ASM", alpha=0.6)
 
-        # 3. Continue region and LLR approximation
-        ax.scatter(xs_cont, ys_cont, c='#4d4d4d', s=15, alpha=0.7, marker='.', label='Continue', zorder=2)
-        approx_curve = model.simplified(t)
-        xs_app, ys_app = transform_coordinates(approx_curve, num_voters_total, mode)
-        ax.plot(xs_app, ys_app, color='#d62728', linewidth=1.6, label='LLR Approx', zorder=3)
+        # 3. Continue region and adaptive LLR approximation
+        ax.scatter(xs_cont, ys_cont, c="#838383", s=15, alpha=0.7, marker='.', label='Continue', zorder=2)
+        
+        # Adaptive curve (red)
+        approx_curve_adaptive = model.simplified(t)
+        xs_app_adaptive, ys_app_adaptive = transform_coordinates(approx_curve_adaptive, num_voters_total, mode)
+        ax.plot(xs_app_adaptive, ys_app_adaptive, color="#fd0000", linewidth=1.67, alpha=1, label='Adaptive', zorder=3)
 
         # 4. Format axes
         format_axes_by_mode(ax, mode, num_voters_total)
@@ -211,6 +213,77 @@ def plot_stopping_boundaries_general(model, times, mode="Diff-vs-Sum", track="",
     # Save or show
     if save_path:
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        print(f"Figure saved to {save_path}")
+    else:
+        plt.show()
+
+
+def plot_posted_front_loaded_boundaries(
+    model, times, arrival_shape, mode="Diff-vs-Sum", track="root", save_path=None
+):
+    """Plot the posted approximation for a front-loaded arrival profile.
+
+    The ASM overlay uses the same region construction and coordinate transform
+    as :func:`plot_stopping_boundaries_general`.
+    """
+    from model import VotingModel
+
+    set_econ_style()
+    front_loaded_model = VotingModel(
+        num_voters=model.num_voters_total,
+        time_horizon=model.time_horizon,
+        step_cost=model.step_cost,
+        reward=model.stop_reward,
+        arrival_a=arrival_shape["a"],
+        arrival_b=arrival_shape["b"],
+    )
+    num_voters_total = front_loaded_model.num_voters_total
+    num_plots = len(times)
+    fig, axes = plt.subplots(
+        1, num_plots, figsize=(6 * num_plots, 5), constrained_layout=True
+    )
+    axes_flat = np.atleast_1d(axes).flatten()
+
+    for idx, t in enumerate(times):
+        ax = axes_flat[idx]
+        posted_curve = front_loaded_model.simplified_posted(t)
+        xs_posted, ys_posted = transform_coordinates(
+            posted_curve, num_voters_total, mode
+        )
+        posted_curve_arr = np.asarray(posted_curve)
+        midpoint = len(posted_curve_arr) // 2
+        posted_x = posted_curve_arr[:midpoint, 0] + posted_curve_arr[:midpoint, 1]
+        posted_lead = posted_curve_arr[:midpoint, 0] - posted_curve_arr[:midpoint, 1]
+        ax.fill_between(
+            posted_x, -posted_lead, posted_lead,
+            facecolor="#d9d9d9", alpha=0.45, zorder=1,
+        )
+        ax.plot(xs_posted, ys_posted, color="#082d47", linewidth=2.0, zorder=2)
+
+        # ASM region: same construction as the stopping-boundaries plot.
+        if track:
+            from asm import compute_ASM_region
+            ASM_region = compute_ASM_region(
+                num_voters_total, front_loaded_model.time_horizon, t,
+                num_points=200, track=track
+            )
+            xs_ASM, ys_ASM = transform_coordinates(
+                ASM_region, num_voters_total, mode
+            )
+            if len(xs_ASM):
+                ax.fill(
+                    xs_ASM, ys_ASM, facecolor="#f2c94c", edgecolor="#c99700",
+                    alpha=0.25, zorder=0
+                )
+
+        format_axes_by_mode(ax, mode, num_voters_total)
+        ax.set_title(
+            rf"$\mathbf{{({string.ascii_lowercase[idx]})}}\quad t={t}$",
+            loc="left", fontweight="normal",
+        )
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight", dpi=300)
         print(f"Figure saved to {save_path}")
     else:
         plt.show()
@@ -262,7 +335,40 @@ def plot_bound_over_time(model, time_horizon, bound_shapes, save_path=None):
         ratio = (N * (Lam_T-Lam_t)) / (Lam_T * (N - Lam_t)) 
         return 2.0 * (np.log(R / c) - np.log(np.log(R / c))) * ratio    # squared-LLR units; sqrt before plotting
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, (state_ax, ax) = plt.subplots(1, 2, figsize=(14, 5), constrained_layout=True)
+
+    # Panel (a): adaptive and posted boundaries at the early and late dates.
+    comparison_times = (2, 26)
+    comparison_styles = {2: "-", 26: "--"}
+    for t in comparison_times:
+        adaptive_curve = model.simplified(t)
+        posted_curve = model.simplified_posted(t)
+        adaptive_x, adaptive_y = transform_coordinates(adaptive_curve, N, "Diff-vs-Sum")
+        posted_x, posted_y = transform_coordinates(posted_curve, N, "Diff-vs-Sum")
+        state_ax.plot(
+            adaptive_x, adaptive_y, color="#fd0000", linestyle=comparison_styles[t],
+            linewidth=1.8,
+        )
+        state_ax.plot(
+            posted_x, posted_y, color="#082d47", linestyle=comparison_styles[t],
+            linewidth=1.8,
+        )
+    format_axes_by_mode(state_ax, "Diff-vs-Sum", N)
+    state_ax.set_title(r"$\mathbf{(a)}$", loc="left", fontweight="normal")
+    time_handles = [
+        Line2D([0], [0], color="black", linestyle=comparison_styles[t],
+               linewidth=1.8, label=rf"$t={t}$")
+        for t in comparison_times
+    ]
+    state_ax.legend(
+        handles=time_handles,
+        loc="upper right",
+        bbox_to_anchor=(1.0, 1.0),
+        borderaxespad=0.0,
+        frameon=False,
+    )
+
+    # Panel (b): the original over-time LLR comparison.
     y_max = 0.0
     for s in bound_shapes:
         y = boundary(s["a"], s["b"])
@@ -279,111 +385,8 @@ def plot_bound_over_time(model, time_horizon, bound_shapes, save_path=None):
     ax.legend(loc='upper right', frameon=False)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
+    ax.set_title(r"$\mathbf{(b)}$", loc="left", fontweight="normal")
 
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
-        print(f"Figure saved to {save_path}")
-    else:
-        plt.show()
-
-# ----------------------------
-# Approximation goodness-of-fit plot
-# ----------------------------
-def plot_approx_goodness(model, times, save_path=None):
-    """Compare exact and simplified thresholds in a two-panel figure."""
-    set_econ_style()
-    N = model.num_voters_total
-    fig, (ax, difference_ax) = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
-    colors = plt.cm.viridis([0.1, 0.40, 0.60])
-
-    for idx, t in enumerate(times):
-        _, _, continue_states = model.get_boundaries(t)
-        simplified_curve = np.asarray(model.simplified(t))
-        simplified_turnout = simplified_curve[:len(simplified_curve) // 2, 0] + simplified_curve[:len(simplified_curve) // 2, 1]
-        simplified_lead = simplified_curve[:len(simplified_curve) // 2, 0] - simplified_curve[:len(simplified_curve) // 2, 1]
-        continue_by_turnout = {s: set() for s in range(N + 1)}
-        for aye, nay in continue_states:
-            s = aye + nay
-            continue_by_turnout[s].add(abs(aye - nay))
-
-        stop_by_turnout = {s: set() for s in range(N + 1)}
-        stop_utilities = model.value_function[model.time_horizon]
-        for aye in range(N + 1):
-            for nay in range(N - aye + 1):
-                if model.value_function[t, aye, nay] <= stop_utilities[aye, nay] + 1e-9:
-                    stop_by_turnout[aye + nay].add(abs(aye - nay))
-
-        exact_s, exact_d, approx_s, approx_d = [], [], [], []
-        for s in range(N + 1):
-            continue_leads = continue_by_turnout[s]
-            stop_leads = stop_by_turnout[s]
-            if not continue_leads or not stop_leads:
-                continue
-
-            all_leads = sorted(continue_leads | stop_leads)
-            split_index = len(continue_leads)
-            expected_continue = set(all_leads[:split_index])
-            if continue_leads != expected_continue or len(all_leads) != len(continue_leads) + len(stop_leads):
-                print(f"Warning: interleaved stopping policy at t={t}, s={s}; skipping")
-                continue
-
-            d_cont_max = max(continue_leads)
-            d_stop_min = min(stop_leads)
-            if d_stop_min != d_cont_max + 2:
-                raise AssertionError(f"Non-adjacent policy split at t={t}, s={s}")
-            exact_s.append(s)
-            exact_d.append((d_cont_max + d_stop_min) / 2)
-            approx_s.append(s)
-            approx_d.append(np.interp(s, simplified_turnout, simplified_lead))
-
-        color = colors[idx % len(colors)]
-        ax.plot(exact_s, exact_d, color=color, linestyle='-', linewidth=1.8, label=rf'$t={t}$')
-        ax.plot(exact_s, -np.asarray(exact_d), color=color, linestyle='-', linewidth=1.8)
-        ax.plot(approx_s, approx_d, color=color, linestyle=':', linewidth=1.8)
-        ax.plot(approx_s, -np.asarray(approx_d), color=color, linestyle=':', linewidth=1.8)
-        residual = np.asarray(exact_d) - np.asarray(approx_d)
-        smoothing_window = 9
-        padded_residual = np.pad(
-            residual,
-            (smoothing_window // 2, smoothing_window // 2),
-            mode='edge',
-        )
-        averaged_residual = np.convolve(
-            padded_residual,
-            np.ones(smoothing_window) / smoothing_window,
-            mode='valid',
-        )
-        difference_ax.plot(
-            exact_s,
-            averaged_residual,
-            color=color,
-            linewidth=1.8,
-        )
-
-    format_axes_by_mode(ax, "Threshold-vs-Turnout", N)
-    difference_ax.axhline(0, color='#cccccc', linestyle='--', linewidth=1, zorder=0)
-    difference_ax.relim()
-    difference_ax.autoscale_view()
-    residual_limit = max(abs(value) for line in difference_ax.lines for value in line.get_ydata())
-    difference_ax.set_ylim(-1.05 * residual_limit, 1.05 * residual_limit)
-    difference_ax.set(
-        xlim=(0, N),
-        xlabel=r"$s^+ + s^-$",
-        ylabel=r"$d^* - \tilde{d}$",
-    )
-    date_handles = [
-        Line2D([0], [0], color=colors[idx % len(colors)], linewidth=1.8, label=rf'$t={t}$')
-        for idx, t in enumerate(times)
-    ]
-    fig.legend(
-        handles=date_handles,
-        loc='lower center',
-        bbox_to_anchor=(0.5, 1.0),
-        ncol=len(date_handles),
-        frameon=False,
-    )
-    ax.set_title(r"$\mathbf{(a)}$", loc='left', fontweight='normal')
-    difference_ax.set_title(r"$\mathbf{(b)}$", loc='left', fontweight='normal')
     if save_path:
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
         print(f"Figure saved to {save_path}")

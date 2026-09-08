@@ -130,37 +130,35 @@ Model parameters and plot settings are managed in `config.py`. Validation ensure
 ## Visualization
 The system produces three figures:
 
-1. Decision Boundaries over Time
-In the generated plots, gray dots represent the "Continue" region, the red curve represents the LLR approximation, and the optional ASM overlay is shown as a shaded polygon. The plotting module supports multiple coordinate transformations. 
+1. **State-Space Decision Boundaries** (`stopping_boundaries__Diff-vs-Sum.pdf`)
 
-| Mode | Description | Axes |
-|------|--------------|------|
-| **Aye-vs-Nay** | Displays counts of "aye" and "nay" votes.  | $x = s^+$, $y = s^-$ |
-| **Diff-vs-Sum** | Plots the vote margin (difference between aye and nay) against the total number of votes cast. | $x = s^+ + s^-$, $y = s^+ - s^-$ |
-| **Acceptance-vs-Turnout** | Shows acceptance rate versus overall turnout fraction. | $x = (s^+ + s^-)/N$, $y = s^+/(s^+ + s^-)$ |
-| **Acceptance-vs-Support** | Plots acceptance rate relative to true underlying support. Note that the stopping region of the ASM is shaped as a rectangle. | $x = s^+/N$, $y = s^+/(s^+ + s^-)$ |
+   Displays the adaptive LLR approximation boundary (red curve) and continue region (gray dots) at selected time points ($t = 2, 14, 26$). An optional ASM overlay is shown as a shaded polygon. 
+   
+   The plotting module supports multiple coordinate transformations:
 
+   | Mode | Description | Axes |
+   |------|--------------|------|
+   | **Aye-vs-Nay** | Counts of "aye" and "nay" votes.  | $x = s^+$, $y = s^-$ |
+   | **Diff-vs-Sum** | Vote margin (difference) against total votes cast. | $x = s^+ + s^-$, $y = s^+ - s^-$ |
+   | **Acceptance-vs-Turnout** | Acceptance rate versus overall turnout fraction. | $x = (s^+ + s^-)/N$, $y = s^+/(s^+ + s^-)$ |
+   | **Acceptance-vs-Support** | Acceptance rate relative to true underlying support. | $x = s^+/N$, $y = s^+/(s^+ + s^-)$ |
 
-Select your preferred visualization by setting `plot_mode` in `config.py`.
+   Select your preferred visualization by setting `plot_mode` in `config.py`.
 
-2. Over-Time LLR Boundary
-Visualization of the time-varying threshold on the right-hand side of the
-LLR approximation. The plotted quantity is the boundary for the normalized
-squared vote lead,
+2. **Posted Boundaries under Front-Loaded Arrivals** (`stopping_boundaries_posted_front_loaded.pdf`)
 
-$$
-\frac{(s^+ - s^-)^2}{s}\,\frac{N}{N-s}.
-$$
+   Shows the posted LLR approximation under front-loaded arrival processes at selected time points. The gray shaded region represents the "Continue" region between the two boundary branches. The yellow shaded area above the upper curve indicates the ASM region used in the paper.
 
-At a given time, the planner continues sampling when this statistic is below
-the plotted threshold and stops when it reaches or exceeds it. The threshold
-falls toward the terminal date.
+3. **Adaptive and Posted Boundaries Over Time** (`LLR.pdf`)
 
-For a detailed discussion on how to interpret these boundaries please review the corresponding sections in our paper.
-
-3. Approximation Goodness of Fit
-The two-panel comparison plots the exact and simplified signed-lead boundaries
-against total turnout, followed by the smoothed difference $d^* - \tilde{d}$.
+   A two-panel comparison figure:
+   
+   - **(a)** State-space overlay of adaptive (red) and posted (blue) LLR boundaries at early ($t=2$, solid) and late ($t=26$, dashed) times under uniform arrivals, shown in $(s^+ + s^-, s^+ - s^-)$ coordinates.
+   
+   - **(b)** Over-time visualization of the stopping threshold for the normalized squared vote lead:
+     $$\frac{(s^+ - s^-)^2}{s}\,\frac{N}{N-s}$$
+     
+     Compares three arrival processes: uniform, front-loaded, and back-loaded. The threshold decreases over time, indicating that the planner's stopping criterion becomes more lenient toward the terminal date.
 
 ## Citation
 If you use this code, methodology, or the resulting plots in your own work, please cite our accompanying paper:
